@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Log Analyzer
+# Generated sample logs -- reproducible via scripts/generate_log.py, so there
+# is no reason to commit megabytes of them.
+samples/

@@ -1,0 +1,13 @@
+# Pinned so a fresh install in six months builds the same app.
+# Regenerate the pins with: pip list --format=freeze
+
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+
+# Required for multipart file uploads. Without it FastAPI raises at import
+# time as soon as an endpoint declares an UploadFile parameter.
+python-multipart==0.0.32
+
+# --- development only ---
+pytest==9.1.1
+httpx==0.28.1          # required by fastapi.testclient.TestClient
