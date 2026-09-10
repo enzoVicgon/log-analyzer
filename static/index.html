@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log Analyzer</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:,">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+<script src="/static/app.js" type="module" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <h1>Log&nbsp;Analyzer</h1>
+    <button id="theme-toggle" class="ghost-button" type="button" aria-label="Toggle colour theme">
+      <span data-theme-label>Dark</span>
+    </button>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- Upload                                                              -->
+  <!-- ------------------------------------------------------------------ -->
+  <section class="upload" aria-labelledby="upload-heading">
+    <h2 id="upload-heading" class="visually-hidden">Upload a log file</h2>
+
+    <div id="dropzone" class="dropzone" tabindex="0" role="button"
+         aria-describedby="upload-hint">
+      <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <p class="dropzone-title">Drop an access log here, or <span class="link-ish">browse</span></p>
+      <p id="upload-hint" class="dropzone-hint">
+        nginx / Apache Combined or Common Log Format &middot; up to 50&nbsp;MB
+      </p>
+      <input type="file" id="file-input" accept=".log,.txt,text/plain" hidden>
+    </div>
+
+    <p id="filename" class="filename" hidden></p>
+  </section>
+
+  <!-- Live region: loading, errors, and empty results all report here. -->
+  <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- Results                                                             -->
+  <!-- ------------------------------------------------------------------ -->
+  <section id="results" class="results" aria-labelledby="results-heading" hidden>
+    <h2 id="results-heading" class="visually-hidden">Analysis results</h2>
+
+    <!-- KPI row. Total requests is the hero figure -- exactly one per view. -->
+    <div class="kpi-row">
+      <article class="tile tile-hero">
+        <p class="tile-label">Total requests</p>
+        <p class="tile-value tile-value-hero" id="kpi-total">&mdash;</p>
+        <p class="tile-note" id="kpi-span">&nbsp;</p>
+      </article>
+
+      <article class="tile">
+        <p class="tile-label">Error rate</p>
+        <p class="tile-value" id="kpi-error-rate">&mdash;</p>
+        <p class="tile-note" id="kpi-error-count">&nbsp;</p>
+      </article>
+
+      <article class="tile">
+        <p class="tile-label">Unique visitors</p>
+        <p class="tile-value" id="kpi-visitors">&mdash;</p>
+        <p class="tile-note">distinct client addresses</p>
+      </article>
+
+      <article class="tile" id="tile-latency">
+        <p class="tile-label">Avg response time</p>
+        <p class="tile-value" id="kpi-avg-time">&mdash;</p>
+        <p class="tile-note" id="kpi-slowest-note">&nbsp;</p>
+      </article>
+
+      <article class="tile">
+        <p class="tile-label">Data transferred</p>
+        <p class="tile-value" id="kpi-bytes">&mdash;</p>
+        <p class="tile-note">total response bodies</p>
+      </article>
+
+      <article class="tile">
+        <p class="tile-label">Unparsed lines</p>
+        <p class="tile-value" id="kpi-malformed">&mdash;</p>
+        <p class="tile-note">lines that did not match the format</p>
+      </article>
+    </div>
+
+    <!-- Charts -->
+    <div class="card-grid">
+
+      <article class="card card-wide">
+        <header class="card-head">
+          <h3>Traffic over time</h3>
+          <p class="card-sub" id="timeline-sub">&nbsp;</p>
+        </header>
+        <!-- Height includes the x-axis band, so the axis labels are never
+             cut off into a nested scrollbar. -->
+        <div class="chart-box chart-box-tall"><canvas id="chart-timeline"></canvas></div>
+        <details class="table-twin">
+          <summary>Data table</summary>
+          <div class="table-scroll"><table id="table-timeline"></table></div>
+        </details>
+      </article>
+
+      <article class="card">
+        <header class="card-head">
+          <h3>Status codes</h3>
+          <p class="card-sub">Share of all responses</p>
+        </header>
+        <div class="chart-box"><canvas id="chart-status"></canvas></div>
+        <!-- Custom legend: label + count + share, so no value is
+             reachable by colour alone. -->
+        <ul class="legend" id="legend-status"></ul>
+        <details class="table-twin">
+          <summary>All status codes</summary>
+          <div class="table-scroll"><table id="table-status"></table></div>
+        </details>
+      </article>
+
+      <article class="card">
+        <header class="card-head">
+          <h3>Most requested endpoints</h3>
+          <p class="card-sub">Query strings grouped together</p>
+        </header>
+        <div class="chart-box chart-box-tall"><canvas id="chart-endpoints"></canvas></div>
+      </article>
+
+    </div>
+
+    <!-- Tables -->
+    <div class="card-grid">
+
+      <article class="card">
+        <header class="card-head">
+          <h3>Most common errors</h3>
+          <p class="card-sub">4xx and 5xx responses by endpoint</p>
+        </header>
+        <div class="table-scroll"><table id="table-errors"></table></div>
+      </article>
+
+      <article class="card" id="card-slowest">
+        <header class="card-head">
+          <h3>Slowest requests</h3>
+          <p class="card-sub" id="slowest-sub">Longest individual response times</p>
+        </header>
+        <div class="table-scroll"><table id="table-slowest"></table></div>
+        <p class="empty-note" id="slowest-unavailable" hidden>
+          This log has no <code>$request_time</code> field, so response times are
+          not available. Stock Combined Log Format does not record them &mdash; add
+          <code>$request_time</code> to your nginx <code>log_format</code> to enable
+          this panel.
+        </p>
+      </article>
+
+    </div>
+  </section>
+</main>
+
+</body>
+</html>
